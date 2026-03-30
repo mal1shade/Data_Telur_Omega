@@ -2,11 +2,6 @@
 <html lang="id">
 <head>
     <link rel="manifest" href="manifest.json">
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-      }
-    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoring Telur Omega SP-1</title>
@@ -62,61 +57,104 @@
     <button id="submit" onclick="kirimData()">Simpan Data ke Google Sheets</button>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbysYBc6KHeFTL3q7dATs1qAR-i5CAaPXs-PScOBZOzHwS9lX1ITzlqO5lxAHOwfSuU28g/exec";
+// 1. GANTI DENGAN URL BARU SETELAH KAMU RE-DEPLOY APPS SCRIPT
+    const API_URL = "https://script.google.com/macros/s/AKfycbysYBc6KHeFTL3q7dATs1qAR-i5CAaPXs-PScOBZOzHwS9lX1ITzlqO5lxAHOwfSuU28g/exec"; 
 
-        // Fungsi Render Kandang
-        function renderKandang() {
-            const b1 = document.getElementById('baris1');
-            const b2 = document.getElementById('baris2');
-            const b3 = document.getElementById('baris3');
+    // Fungsi Render Kandang (Tetap dipertahankan)
+    function renderKandang() {
+        const b1 = document.getElementById('baris1');
+        const b2 = document.getElementById('baris2');
+        const b3 = document.getElementById('baris3');
 
-            // Render Baris 1 & 2
-            for(let i=1; i<=15; i++) {
-                b1.innerHTML += buatKolom(`B1-K${i}`, 2);
-                b2.innerHTML += buatKolom(`B2-K${i}`, 2);
-            }
+        b1.innerHTML = ''; b2.innerHTML = ''; b3.innerHTML = ''; // Reset
 
-            // Render Baris 3
-            for(let i=1; i<=11; i++) {
-                let jumlahAyam = (i <= 5) ? 2 : 1;
-                b3.innerHTML += buatKolom(`B3-K${i}`, jumlahAyam);
-            }
+        for(let i=1; i<=15; i++) {
+            b1.innerHTML += buatKolom(`B1-K${i}`, 2);
+            b2.innerHTML += buatKolom(`B2-K${i}`, 2);
         }
 
-        function buatKolom(id, jumlah) {
-            let buttons = '';
-            for(let j=1; j<=jumlah; j++) {
-                buttons += `<button class="ayam" onclick="toggleAyam(this)" data-id="${id}-A${j}">Ayam ${j}</button>`;
-            }
-            return `<div class="kolom"><small>${id}</small>${buttons}</div>`;
+        for(let i=1; i<=11; i++) {
+            let jumlahAyam = (i <= 5) ? 2 : 1;
+            b3.innerHTML += buatKolom(`B3-K${i}`, jumlahAyam);
         }
+    }
 
-        function toggleAyam(btn) {
+    function buatKolom(id, jumlah) {
+        let buttons = '';
+        for(let j=1; j<=jumlah; j++) {
+            buttons += `<button class="ayam" onclick="toggleAyam(this)" data-id="${id}-A${j}">Ayam ${j}</button>`;
+        }
+        return `<div class="kolom"><small>${id}</small>${buttons}</div>`;
+    }
+
+    function toggleAyam(btn) {
+        // Hanya bisa toggle jika belum dikunci (sudah masuk database)
+        if (!btn.disabled) {
             btn.classList.toggle('bertelur');
         }
+    }
 
-        async function kirimData() {
-            const btnSubmit = document.getElementById('submit');
-            btnSubmit.innerText = "Sedang Mengirim...";
+    // --- FITUR BARU: HEATMAP (Point 1) ---
+    async function muatStatusHariIni() {
+        try {
+            const response = await fetch(API_URL);
+            const dataSudahBertelur = await response.json();
             
-            const ayamBertelur = document.querySelectorAll('.ayam.bertelur');
-            
-            // Mengirim data satu per satu atau kolektif
-            for (let ayam of ayamBertelur) {
-                const data = { id: ayam.getAttribute('data-id'), jumlah: 1 };
-                
-                await fetch(API_URL, {
-                    method: 'POST',
-                    body: JSON.stringify(data),
-                    mode: 'no-cors'
-                });
-            }
+            // Loop data dari database, tandai ayam yang sudah bertelur hari ini
+            dataSudahBertelur.forEach(id => {
+                const btn = document.querySelector(`[data-id="${id}"]`);
+                if (btn) {
+                    btn.classList.add('bertelur');
+                    btn.disabled = true; // Kunci tombol agar tidak dobel input
+                    btn.innerText = "✓"; // Tanda sudah tercatat
+                }
+            });
+        } catch (e) { 
+            console.log("Belum ada data hari ini di database."); 
+        }
+    }
 
-            alert("Data berhasil disimpan!");
-            location.reload(); // Refresh halaman
+    // --- FITUR BARU: BATCH UPLOAD (Point 3) ---
+    async function kirimData() {
+        const btnSubmit = document.getElementById('submit');
+        // Hanya ambil ayam yang dipilih SEKARANG (yang belum ada di database/disabled)
+        const ayamBaruBertelur = document.querySelectorAll('.ayam.bertelur:not(:disabled)');
+        
+        if (ayamBaruBertelur.length === 0) {
+            return alert("Pilih ayam yang bertelur dulu!");
         }
 
+        btnSubmit.innerText = "Sedang Mengirim Batch...";
+        btnSubmit.disabled = true;
+
+        // Ambil semua ID ayam yang dipilih ke dalam satu Array
+        const daftarID = Array.from(ayamBaruBertelur).map(a => a.getAttribute('data-id'));
+
+        try {
+            await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify(daftarID),
+                mode: 'no-cors' // Penting untuk Apps Script
+            });
+
+            alert(`Berhasil menyimpan ${daftarID.length} data ayam bertelur!`);
+            location.reload(); // Refresh untuk melihat status terbaru
+        } catch (error) {
+            alert("Gagal mengirim data. Coba cek koneksi.");
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = "Simpan Data ke Google Sheets";
+        }
+    }
+
+    // Jalankan saat halaman dibuka
+    window.onload = async () => {
         renderKandang();
+        await muatStatusHariIni(); // Langsung cek data dari database saat buka web
+    };
+        renderKandang();
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+      }
     </script>
 </body>
 </html>

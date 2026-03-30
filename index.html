@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Telur Omega SP-1</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f4; padding: 20px; }
+        .kandang-container { display: flex; flex-direction: column; gap: 20px; }
+        
+        /* Baris 1 & 2: 15 Kolom */
+        .row-15 { 
+            display: grid; 
+            grid-template-columns: repeat(15, 1fr); 
+            gap: 5px; 
+        }
+        
+        /* Baris 3: Campuran */
+        .row-mixed { 
+            display: grid; 
+            grid-template-columns: repeat(11, 1fr); 
+            gap: 5px; 
+        }
+
+        .kolom { 
+            border: 1px solid #ccc; background: #fff; padding: 5px; 
+            display: flex; flex-direction: column; gap: 3px; border-radius: 4px;
+        }
+
+        .ayam {
+            background: #eee; border: none; padding: 8px 0; cursor: pointer;
+            font-size: 10px; border-radius: 3px; transition: 0.3s;
+        }
+
+        .ayam.bertelur { background: #ffd700; font-weight: bold; }
+        
+        button#submit { 
+            margin-top: 30px; padding: 15px; background: #28a745; 
+            color: white; border: none; border-radius: 8px; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h2>Visual Kandang Ayam</h2>
+    <div class="kandang-container" id="main-kandang">
+        <h3>Baris 1 (15 Kolom x 2 Ayam)</h3>
+        <div id="baris1" class="row-15"></div>
+
+        <h3>Baris 2 (15 Kolom x 2 Ayam)</h3>
+        <div id="baris2" class="row-15"></div>
+
+        <h3>Baris 3 (5x2 Ayam, 6x1 Ayam)</h3>
+        <div id="baris3" class="row-mixed"></div>
+    </div>
+
+    <button id="submit" onclick="kirimData()">Simpan Data ke Google Sheets</button>
+
+    <script>
+        const API_URL = "https://script.google.com/macros/s/AKfycbysYBc6KHeFTL3q7dATs1qAR-i5CAaPXs-PScOBZOzHwS9lX1ITzlqO5lxAHOwfSuU28g/exec";
+
+        // Fungsi Render Kandang
+        function renderKandang() {
+            const b1 = document.getElementById('baris1');
+            const b2 = document.getElementById('baris2');
+            const b3 = document.getElementById('baris3');
+
+            // Render Baris 1 & 2
+            for(let i=1; i<=15; i++) {
+                b1.innerHTML += buatKolom(`B1-K${i}`, 2);
+                b2.innerHTML += buatKolom(`B2-K${i}`, 2);
+            }
+
+            // Render Baris 3
+            for(let i=1; i<=11; i++) {
+                let jumlahAyam = (i <= 5) ? 2 : 1;
+                b3.innerHTML += buatKolom(`B3-K${i}`, jumlahAyam);
+            }
+        }
+
+        function buatKolom(id, jumlah) {
+            let buttons = '';
+            for(let j=1; j<=jumlah; j++) {
+                buttons += `<button class="ayam" onclick="toggleAyam(this)" data-id="${id}-A${j}">Ayam ${j}</button>`;
+            }
+            return `<div class="kolom"><small>${id}</small>${buttons}</div>`;
+        }
+
+        function toggleAyam(btn) {
+            btn.classList.toggle('bertelur');
+        }
+
+        async function kirimData() {
+            const btnSubmit = document.getElementById('submit');
+            btnSubmit.innerText = "Sedang Mengirim...";
+            
+            const ayamBertelur = document.querySelectorAll('.ayam.bertelur');
+            
+            // Mengirim data satu per satu atau kolektif
+            for (let ayam of ayamBertelur) {
+                const data = { id: ayam.getAttribute('data-id'), jumlah: 1 };
+                
+                await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(data),
+                    mode: 'no-cors'
+                });
+            }
+
+            alert("Data berhasil disimpan!");
+            location.reload(); // Refresh halaman
+        }
+
+        renderKandang();
+    </script>
+</body>
+</html>
